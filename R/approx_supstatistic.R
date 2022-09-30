@@ -32,14 +32,14 @@ tGKF <- function(Set, X, threshold) {
     L0 <- 1
 
     # LKC_1 gemaess Schaetzung
-    residuals <-
-        (X - rowSums(X) / ncol(X)) / apply(X, 1, sd)
-
     if (length(Set) > 1) {
+        residuals <- (X - rowSums(X) / ncol(X)) / apply(X, 1, sd)
+
         df.residuals <- apply(residuals, 2, function(values) {
             func <- stats::splinefun(Set, values, method = "natural")
             pracma::fderiv(func, Set, method = "central")
         }) %>% apply(1, stats::sd)
+
         L1 <- # Trapezregel
             sum(diff(Set) / 2 * (df.residuals[-length(df.residuals)] + df.residuals[-1]))
     } else {
