@@ -1,7 +1,7 @@
 #' Konfidenz-Obermenge eines Excursion Sets
 #'
-#' Berechnung einer Konfidenz-Obermenge des Excursion Sets
-#' \eqn{{s: \mu(s) > level}} bzgl. eines Zufallsfelds
+#' Berechnung einer Konfidenz-Obermenge der Menge
+#' \eqn{{s: \mu(s) = level}} bzw. \eqn{{s: \mu(s) > level}} bzgl. eines Zufallsfelds
 #' \eqn{X(s) = \mu(s) + \sigma(s)\epsilon(s)} zu einer kompakten Grundmenge S mit
 #' Eulercharakteristik 1.
 #' Die Berechnung basiert auf der Metode aus
@@ -13,6 +13,9 @@
 #' @param partitions Partitionierung der Grundmenge (degenerierend und verfeinernd).
 #' @param alpha Signifikanzniveau für die Konfidenzmenge.
 #' @param level Grenzwert des Excursion Sets.
+#' @param equal Wahrheitswert, ob einseitig (FALSE) oder zweiseitig (TRUE) getestet
+#' werden soll. Beim einseitigen Test nimmt die Nullhypothese stets an, dass das
+#' angegebene Level überschritten wird.
 #' @param pmethod Approximationsmethode der p-Werte:
 #' "tgkf" - Gaußsche Kinematische Formel für t-Verteilungen (default),
 #' "mboot"- Multiplier Bootstrap.
@@ -27,15 +30,23 @@ ConfSet <- function(data,
                     partitions,
                     alpha,
                     level,
+                    equal = T,
                     pmethod = "tgkf",
                     mb.iter = 1000) {
     # Initialisierungen ----
     samplesize <- ncol(data)
-    t.statistic <-
-        -sqrt(samplesize) * (rowSums(data) / samplesize - level) /
-        apply(data, 1, stats::sd)
-    if (pmethod == "mboot")
-        mboot <- mBoot(data, iter = mb.iter) %>% t()
+
+    if (equal){
+        t.statistic <-
+            abs(sqrt(samplesize) * (rowSums(data) / samplesize - level) /
+            apply(data, 1, stats::sd))
+    } else {
+        t.statistic <-
+            -sqrt(samplesize) * (rowSums(data) / samplesize - level) /
+            apply(data, 1, stats::sd)
+    }
+
+    if (pmethod == "mboot") mboot <- mBoot(data, iter = mb.iter) %>% t()
 
     # Berechnungen ----
     sets.per.niveau <-
