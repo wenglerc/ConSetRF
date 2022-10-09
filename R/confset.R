@@ -39,7 +39,7 @@ ConfSet <- function(data,
     if (equal){
         t.statistic <-
             abs(sqrt(samplesize) * (rowSums(data) / samplesize - level) /
-            apply(data, 1, stats::sd))
+                    apply(data, 1, stats::sd))
     } else {
         t.statistic <-
             -sqrt(samplesize) * (rowSums(data) / samplesize - level) /
@@ -89,6 +89,7 @@ ConfSet <- function(data,
                         pvalue <- tGKF(sortedUnions[[i]],
                                        data[S %in% sortedUnions[[i]],],
                                        threshold = teststatistics[i])
+                        if (equal) pvalue <- pvalue * 2
                         # Akzeptiere V_k, wenn p(x_k, V_k) >= alpha
                         if (pvalue < alpha) {
                             accept.index <- ifelse(i == N, 0, i + 1)
@@ -103,6 +104,7 @@ ConfSet <- function(data,
                         pvalue <-
                             length(mboot.max[mboot.max >= teststatistics[i]]) /
                             length(mboot.max)
+                        if (equal) pvalue <- pvalue * 2
                         # Akzeptiere V_k, wenn p(x_k, V_k) >= alpha
                         if (pvalue < alpha) {
                             accept.index <- ifelse(i == N, 0, i + 1)
