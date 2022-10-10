@@ -51,18 +51,41 @@ overcov.per.model <- function(results, covset, methodname){
 
 # Modell-Komponenten ----------------------------------------------------
 
-mu1 <- function(S) {
-    sin(S * 2 * pi)
+mu1 <- function(S, scale = 10, length = 1/3) {
+    left <- (1 - length) / 2
+    right <- (1 + length) / 2
+
+    sapply(S, function(s) {
+        if (s <= left) (scale * (s - left) ^ 2)
+        else if (s < right) 0
+        else (scale * (s - right) ^ 2)
+    })
 } # Erwartungswertfunktion 1
 mu2 <- function(S) {
-    sin(S * 4 * pi) * 2 * S
+    sapply(S, function(s){
+        if (s <= 1/5) 15*(s - 1/5)^2
+        else if (s < 2/5) 0
+        else if (s <= 3/5) -(sin(s*10*pi + pi/2) - 1)/5
+        else if (s < 4/5) 0
+        else 15*(s - 4/5)^2
+    })
 } # Erwartungswertfunktion 2
 mu3 <- function(S) {
-    sin(S * 12 * pi) * (S - 0.5) * 2
+    sapply(S, function(s){
+        if (s <= 1/9) 20*(s - 1/9)^2
+        else if (s < 2/9) 0
+        else if (s <= 3/9) -(sin(s*18*pi + pi/2) - 1)/10
+        else if (s < 4/9) 0
+        else if (s <= 5/9) -(sin(s*18*pi + pi/2) - 1)/10
+        else if (s < 6/9) 0
+        else if (s <= 7/9) -(sin(s*18*pi + pi/2) - 1)/10
+        else if (s < 8/9) 0
+        else 20*(s - 8/9)^2
+    })
 } # Erwartungswertfunktion 3
 
 sigma <- function(S) {
-    rep(0.3, length(S))
+    rep(0.1, length(S))
 } # Varianzfunktion
 
 c1 <- function(S, h = 0.075) {
@@ -78,7 +101,7 @@ c2 <- function(S, a = 30, l = 0.5) {
 
 randomseed <- 1
 samplesize.max <- 500
-iterations <- 10
+iterations <- 1000
 gridpoints <- 200       # Anzahl equidistanter Gitterpunkte
 alpha <- 0.05           # Signifikanzniveau
 
@@ -93,56 +116,62 @@ level <- 0                                  # Grenzwert der Null-Hypothese
 mu1.S <- mu1(S)
 mu2.S <- mu2(S)
 mu3.S <- mu3(S)
+mu4.S <- mu1(S, scale = 1)    # near 0 at the border
+mu5.S <- mu1(S, length = 1/50)  # shorter intervall
+mu6.S <- mu1(S, length = 3/4)   # longer intervall
+mu.all <- list(mu1.S, mu2.S, mu3.S, mu4.S, mu5.S, mu6.S)
+
+rm(mu1.S, mu2.S, mu3.S, mu4.S, mu5.S, mu6.S)
+gc()
+
 sigma.S <- sigma(S)
 c1.S <- c1(S)
 c2.S <- c2(S)
 
-S0.1 <- S[mu1.S > level]
-S0.2 <- S[mu2.S > level]
-S0.3 <- S[mu3.S > level]
+S0 <- lapply(mu.all, function(mu) {S[mu == 0]})
+# S0.1 <- S[mu1.S > level]
+# S0.2 <- S[mu2.S > level]
+# S0.3 <- S[mu3.S > level]
+# S0.4 <- S[mu4.S > level]
+# S0.5 <- S[mu5.S > level]
+# S0.6 <- S[mu6.S > level]
 
-# Realisierungen von X
+# Realisierungen von X simulieren
 cluster <- makeCluster(detectCores() - 1)
 registerDoParallel(cluster)
 
 tic("Daten generieren")
 eps.all <- foreach(i = 1:(3 * iterations)) %dopar% {
     if (i <= iterations) {
-        t(mvtnorm::rmvnorm(samplesize.max, sigma = c1.S))
-    } else if (i <= (2 * iterations)) {
         t(mvtnorm::rmvt(samplesize.max, sigma = c1.S, df = 3))
-    } else {
+    } else if (i <= (2 * iterations)) {
         t(mvtnorm::rmvt(samplesize.max, sigma = c2.S, df = 3))
+    } else {
+        t(mvtnorm::rmvnorm(samplesize.max, sigma = c1.S))
     }
 }
 
-data1 <- foreach(i = 1:(2 * iterations)) %dopar% {
-    if (i <= iterations)
-        mu2.S + sigma.S * eps.all[[i]]
-    else
-        mu3.S + sigma.S * eps.all[[i - iterations]]
-}
-data2 <- foreach(eps = eps.all) %dopar% {
-    mu1.S + sigma.S * eps
-}
+data.A <- foreach(mu = mu.all) %:% foreach(eps = eps.all[-(1:(2*iterations))]
+            ) %dopar% { mu + sigma.S * eps }
+data.BC <- foreach(eps = eps.all[1:(2*iterations)]
+            ) %dopar% { mu.all[[1]] + sigma.S * eps }
+
 toc()
 
 stopCluster(cluster)
 
+# Benennung und Ordnung der Daten
+names(eps.all) <- paste(rep(c("B.", "C.", "A."), each = iterations),
+                        1:iterations, sep = "")
 
-names(eps.all) <- paste(rep(c("A.", "B.", "C."), each = iterations),
-                        rep(1:iterations, times = 3),
-                        sep = "")
-names(data1) <- paste(rep(c("A2.", "A3."), each = iterations),
-                      rep(1:iterations, times = 2),
-                      sep = "")
-names(data2) <- paste(rep(c("A1.", "B.", "C."), each = iterations),
-                      rep(1:iterations, times = 3),
-                      sep = "")
+names(data.A) <- paste("A", 1:length(data.A), ".", sep = "")
 
-data.all <- c(data1, data2)
+names(data.BC) <- paste(rep(c("B.", "C."), each = iterations),
+                        1:iterations, sep = "")
 
-rm(data1, data2, cluster, c1.S, c2.S)
+data.all <- c(data.BC, unlist(data.A, recursive = F))
+
+rm(data.A, data.BC, cluster, c1.S, c2.S)
 gc()
 
 
@@ -185,7 +214,7 @@ for ( i in 1:length(data.noise.list) ){
                       gsub(".*\\.(.+)\\..*", "\\1", names(data.examp.list)[i]))) +
         geom_line(data = data.examp, aes(S, Wert, colour = Sample, linetype = Sample),
                   alpha = 0.5) +
-        geom_line(data = data.frame(S = S, Erwartungswert = mu1.S),
+        geom_line(data = data.frame(S = S, Erwartungswert = mu.all[[1]]),
                   aes(S, Erwartungswert), colour = "red")
 
     plots.noise[[i]] <- p +  ylim(min.noise, max.noise) +
@@ -197,16 +226,21 @@ for ( i in 1:length(data.noise.list) ){
 # (plots.examp[[1]] + plots.examp[[2]] + plots.examp[[3]]) /
 #     (plots.noise[[1]] + plots.noise[[2]] + plots.noise[[3]])
 
-# Darstellung von Realisierungen der Modelle A1,A2,A3
+# Darstellung von Realisierungen der Modelle A1,..., A6
 
 data.exampA.list <- list(
     data.A1.examp = data.all[[which(grepl("A1", names(data.all)) == T)[1]]],
     data.A2.examp = data.all[[which(grepl("A2", names(data.all)) == T)[1]]],
-    data.A3.examp = data.all[[which(grepl("A3", names(data.all)) == T)[1]]]
+    data.A3.examp = data.all[[which(grepl("A3", names(data.all)) == T)[1]]],
+    data.A4.examp = data.all[[which(grepl("A4", names(data.all)) == T)[1]]],
+    data.A5.examp = data.all[[which(grepl("A5", names(data.all)) == T)[1]]],
+    data.A6.examp = data.all[[which(grepl("A6", names(data.all)) == T)[1]]]
 )
 
-max.exampA <- max(sapply(data.exampA.list, function(mat) max(mat[,1:10])))
-min.exampA <- min(sapply(data.exampA.list, function(mat) min(mat[,1:10])))
+# max.exampA <- max(sapply(data.exampA.list, function(mat) max(mat[,1:10])))
+# min.exampA <- min(sapply(data.exampA.list, function(mat) min(mat[,1:10])))
+max.exampA <- 1
+min.exampA <- -0.25
 
 plots.exampA <- vector( mode = "list", length(data.exampA.list) )
 for ( i in 1:length(data.exampA.list) ){
@@ -219,22 +253,17 @@ for ( i in 1:length(data.exampA.list) ){
         ggtitle(paste("Modell",
                       gsub(".*\\.(.+)\\..*", "\\1", names(data.exampA.list)[i]))) +
         geom_line(data = data.examp, aes(S, Wert, colour = Sample, linetype = Sample),
-                  alpha = 0.5)
+                  alpha = 0.5) +
+        geom_line(data = data.frame(S = S, Erwartungswert = mu.all[[i]]),
+                  aes(S, Erwartungswert), colour = "red")
 }
 
-# (plots.exampA[[1]] +
-#         geom_line(data = data.frame(S = S, Erwartungswert = mu1.S),
-#                   aes(S, Erwartungswert), colour = "red")) +
-# (plots.exampA[[2]] +
-#          geom_line(data = data.frame(S = S, Erwartungswert = mu2.S),
-#                    aes(S, Erwartungswert), colour = "red")) +
-# (plots.exampA[[3]] +
-#          geom_line(data = data.frame(S = S, Erwartungswert = mu3.S),
-#                    aes(S, Erwartungswert), colour = "red"))
+# (plots.exampA[[1]] + plots.exampA[[2]] + plots.exampA[[3]]) /
+#     (plots.exampA[[4]] + plots.exampA[[5]] + plots.exampA[[6]])
 
 # Speicherplatz frei machen
 rm(
-    eps.all, mu1.S, mu2.S, mu3.S, sigma.S,
+    eps.all, mu.all, sigma.S,
     data.examp, data.noise, data.examp.list, data.noise.list, data.exampA.list,
     max.examp, min.examp, max.noise, min.noise, max.exampA, min.exampA,
     p, plots.examp, plots.noise, plots.exampA
@@ -243,26 +272,27 @@ gc()
 
 # Berechnungen ----------------------------------------------------------------
 
-
-# U <- ConfSet(data.all[[1]], S, partitions, alpha, level, equal = F,
-#              pmethod = "tGKF")
-# cat("S0 nicht in U: ", length( S0.2[ !(S0.2 %in% U)] ) / length(S0.2),
-#     "\nU nicht in S0: ", length( U[ !(U %in% S0.2)] ) / length(U))
+# S0.1 = S0[[1]]
 #
-# U <- ConfSet(data.all[[1]], S, partitions, alpha, level, equal = F,
-#              pmethod = "mboot", mb.iter = 500)
-# cat("S0 nicht in U: ", length( S0.2[ !(S0.2 %in% U)] ) / length(S0.2),
-#     "\nU nicht in S0: ", length( U[ !(U %in% S0.2)] ) / length(U))
+# U <- ConfSet(data.all[[2]], S, partitions, alpha, level, testcase = 3,
+#              pmethod = "tGKF")
+# cat("S0 nicht in U: ", length( S0.1[ !(S0.1 %in% U)] ) / length(S0.1),
+#     "\nU nicht in S0: ", length( U[ !(U %in% S0.1)] ) / length(U))
+#
+# U <- ConfSet(data.all[[2]], S, partitions, alpha, level, testcase = 3,
+#              pmethod = "mboot", mb.iter = 1000)
+# cat("S0 nicht in U: ", length( S0.1[ !(S0.1 %in% U)] ) / length(S0.1),
+#     "\nU nicht in S0: ", length( U[ !(U %in% S0.1)] ) / length(U))
 
 #
 ### Laufzeit -----------------------------------------------------------------
 # mbm <- microbenchmark(
 #     GKF = ConfSet(data.all[[1]][, 1:50], S, partitions, alpha, level,
-#                   equal = F, pmethod = "tgkf"),
+#                   testcase = 3, pmethod = "tgkf"),
 #     MB500 = ConfSet(data.all[[1]][, 1:50], S, partitions, alpha, level,
-#                     equal = F, pmethod = "mboot", mb.iter = 500),
+#                     testcase = 3, pmethod = "mboot", mb.iter = 500),
 #     MB1000 = ConfSet(data.all[[1]][, 1:50], S, partitions, alpha, level,
-#                      equal = F, pmethod = "mboot", mb.iter = 1000),
+#                      testcase = 3, pmethod = "mboot", mb.iter = 1000),
 #     times = 100
 # )
 # autoplot(mbm)
@@ -284,7 +314,7 @@ results.gkf <-
     foreach(data = data.all, .packages = c("dplyr", "ConfSetRF")) %dopar% {
 
         lapply(samplesize.list, function(N) {
-            ConfSet(data[, 1:N], S, partitions, alpha, level, equal = F,
+            ConfSet(data[, 1:N], S, partitions, alpha, level, testcase = 3,
                     pmethod = "tgkf")
         })
     }
@@ -296,33 +326,33 @@ names(results.gkf) <- names(data.all)
 
 # Coverage je Modell ABC
 cov.gkf.ABC <-
-    cov.per.model(results.gkf[-(1:(2*iterations))], S0.1, "t-GKF")
+    cov.per.model(results.gkf[1:(3*iterations)], S0[[1]], "t-GKF")
 summarise.cov.gkf.ABC <- cov.gkf.ABC %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
 # Overcoverage je Modell ABC
 overcov.gkf.ABC <-
-    overcov.per.model(results.gkf[-(1:(2*iterations))], S0.1, "t-GKF")
+    overcov.per.model(results.gkf[1:(3*iterations)], S0[[1]], "t-GKF")
 summarise.overcov.gkf.ABC <- overcov.gkf.ABC %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
 
 
 # Coverage je Erwartungswertfunktion
-cov.gkf.means <- rbind(
-    cov.per.model(results.gkf[(2 * iterations + 1):(3 * iterations)], S0.1, "t-GKF"),
-    cov.per.model(results.gkf[1:iterations], S0.2, "t-GKF"),
-    cov.per.model(results.gkf[(iterations + 1):(2 * iterations)], S0.3, "t-GKF")
-)
+cov.gkf.means <-
+    lapply(1:length(S0), function(i){
+        cov.per.model(results.gkf[((i+1)*iterations + 1):((i+2)*iterations)],
+                      S0[[i]], "t-GKF")
+        }) %>% do.call(rbind, .)
 summarise.cov.gkf.means <- cov.gkf.means %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
 # Overcoverage je Erwartungswertfunktion
-overcov.gkf.means <-rbind(
-    overcov.per.model(results.gkf[(2 * iterations + 1):(3 * iterations)], S0.1, "t-GKF"),
-    overcov.per.model(results.gkf[1:iterations], S0.2, "t-GKF"),
-    overcov.per.model(results.gkf[(iterations + 1):(2 * iterations)], S0.3, "t-GKF")
-)
+overcov.gkf.means <-
+    lapply(1:length(S0), function(i){
+        overcov.per.model(results.gkf[((i+1)*iterations + 1):((i+2)*iterations)],
+                      S0[[i]], "t-GKF")
+    }) %>% do.call(rbind, .)
 summarise.overcov.gkf.means <- overcov.gkf.means %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
@@ -338,29 +368,29 @@ registerDoParallel(cluster)
 # Obermengen je Samplegroesse
 tic("MB parallel")
 results.mb <-
-    foreach(data = data.all[-(1:(2*iterations))], .packages = c("dplyr", "ConfSetRF")) %dopar% {
+    foreach(data = data.all[1:(3*iterations)],
+            .packages = c("dplyr", "ConfSetRF")) %dopar% {
 
         lapply(samplesize.list, function(N) {
             ConfSet(data[, 1:N], S, partitions, alpha, level,
-                    equal = F, pmethod = "mboot", mb.iter = 500)
+                    testcase = 3, pmethod = "mboot", mb.iter = 500)
         })
-        # unlist(l, recursive = F)
 
     }
 stopCluster(cluster)
 toc()
 
-names(results.mb) <- names(data.all[-(1:(2*iterations))])
+names(results.mb) <- names(data.all[1:(3*iterations)])
 
 # Coverage je Modell ABC
 cov.mb.ABC <-
-    cov.per.model(results.mb, S0.1, "Multiplier Bootstrap")
+    cov.per.model(results.mb, S0[[1]], "Multiplier Bootstrap")
 summarise.cov.mb.ABC <- cov.mb.ABC %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
 # Overcoverage je Modell ABC
 overcov.mb.ABC <-
-    overcov.per.model(results.mb, S0.1, "Multiplier Bootstrap")
+    overcov.per.model(results.mb, S0[[1]], "Multiplier Bootstrap")
 summarise.overcov.mb.ABC <- overcov.mb.ABC %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
@@ -370,7 +400,7 @@ gc()
 
 
 # Auswertung ----------------------------------------------------------------
-pdf(file = "Auswertungen.pdf", width = 6, height = 4)
+pdf(file = "Auswertungen.pdf", width = 12, height = 8)
 
 ## Coverage -----------------------------------------------------------------
 cov.plot.ABC <- rbind(summarise.cov.gkf.ABC, summarise.cov.mb.ABC)
@@ -387,7 +417,7 @@ pcov <- ggplot(cov.plot.ABC, aes(x = samplesize)) +
 # Coverage je Modell ABC
 pcovABC <- pcov +
     geom_line(aes(y = value_mean, color = model,
-               linetype = method)) +
+                  linetype = method)) +
     geom_point(aes(y = value_mean, color = model, shape = model))
 pcovABC
 # Coverage je Erwartungswertfunktion
@@ -456,5 +486,5 @@ povercovmean.gkf
 
 dev.off()
 
-# save.image(file = "results_onesided.RData")
+# save.image(file = "third_results.RData")
 

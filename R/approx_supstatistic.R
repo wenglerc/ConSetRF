@@ -6,8 +6,7 @@
 #' Gaussian Kinematic Formular für eindimensionale t-verteilte Zufallsfelder
 #'
 #' Berechnung der erwarteteten Eulercharakteristik per GKF für das Excursion
-#' Set \eqn{S_0 = {\mu(s) > level}} eines eindimensionalen Zufallsfeldes
-#' zu einem fixen Level.
+#' Set eines eindimensionalen Zufallsfeldes zu einem fixen Level.
 #' Die Grundmenge des Zufallsfeldes muss zusammenhängend sein,
 #' also eine Eulercharakteristik von 1 besitzen
 #'

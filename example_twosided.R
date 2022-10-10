@@ -107,7 +107,7 @@ c2 <- function(S, a = 30, l = 0.5) {
 
 randomseed <- 1
 samplesize.max <- 500
-iterations <- 10
+iterations <- 1000
 gridpoints <- 200       # Anzahl equidistanter Gitterpunkte
 alpha <- 0.05           # Signifikanzniveau
 
@@ -492,5 +492,5 @@ povercovmean.gkf
 
 dev.off()
 
-save.image(file = "second_results.RData")
+# save.image(file = "results_twosided.RData")
 

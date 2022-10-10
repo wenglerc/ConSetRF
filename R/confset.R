@@ -1,7 +1,7 @@
 #' Konfidenz-Obermenge eines Excursion Sets
 #'
 #' Berechnung einer Konfidenz-Obermenge der Menge
-#' \eqn{{s: \mu(s) = level}} bzw. \eqn{{s: \mu(s) > level}} bzgl. eines Zufallsfelds
+#' \eqn{{s: \mu(s) =/>/< level}} bzgl. eines Zufallsfelds
 #' \eqn{X(s) = \mu(s) + \sigma(s)\epsilon(s)} zu einer kompakten Grundmenge S mit
 #' Eulercharakteristik 1.
 #' Die Berechnung basiert auf der Metode aus
@@ -13,9 +13,10 @@
 #' @param partitions Partitionierung der Grundmenge (degenerierend und verfeinernd).
 #' @param alpha Signifikanzniveau für die Konfidenzmenge.
 #' @param level Grenzwert des Excursion Sets.
-#' @param equal Wahrheitswert, ob einseitig (FALSE) oder zweiseitig (TRUE) getestet
-#' werden soll. Beim einseitigen Test nimmt die Nullhypothese stets an, dass das
-#' angegebene Level überschritten wird.
+#' @param testcase Angabe, auf welche Weise das gegebene Level zu testen ist.
+#' 1 = zweiseitig mit \eqn{H0 = (\mu = 0)};
+#' 2 = einseitig mit \eqn{H0 = (\mu > 0)};
+#' 3 = einseitig mit \eqn{H0 = (\mu <= 0)}
 #' @param pmethod Approximationsmethode der p-Werte:
 #' "tgkf" - Gaußsche Kinematische Formel für t-Verteilungen (default),
 #' "mboot"- Multiplier Bootstrap.
@@ -30,19 +31,23 @@ ConfSet <- function(data,
                     partitions,
                     alpha,
                     level,
-                    equal = T,
+                    testcase = 1,
                     pmethod = "tgkf",
                     mb.iter = 1000) {
     # Initialisierungen ----
     samplesize <- ncol(data)
 
-    if (equal){
+    if (testcase == 1){
         t.statistic <-
             abs(sqrt(samplesize) * (rowSums(data) / samplesize - level) /
                     apply(data, 1, stats::sd))
-    } else {
+    } else if (testcase == 2){
         t.statistic <-
             -sqrt(samplesize) * (rowSums(data) / samplesize - level) /
+            apply(data, 1, stats::sd)
+    } else {
+        t.statistic <-
+            sqrt(samplesize) * (rowSums(data) / samplesize - level) /
             apply(data, 1, stats::sd)
     }
 
@@ -89,7 +94,7 @@ ConfSet <- function(data,
                         pvalue <- tGKF(sortedUnions[[i]],
                                        data[S %in% sortedUnions[[i]],],
                                        threshold = teststatistics[i])
-                        if (equal) pvalue <- pvalue * 2
+                        if (testcase == 2) pvalue <- pvalue * 2
                         # Akzeptiere V_k, wenn p(x_k, V_k) >= alpha
                         if (pvalue < alpha) {
                             accept.index <- ifelse(i == N, 0, i + 1)
@@ -104,7 +109,7 @@ ConfSet <- function(data,
                         pvalue <-
                             length(mboot.max[mboot.max >= teststatistics[i]]) /
                             length(mboot.max)
-                        if (equal) pvalue <- pvalue * 2
+                        if (testcase == 2) pvalue <- pvalue * 2
                         # Akzeptiere V_k, wenn p(x_k, V_k) >= alpha
                         if (pvalue < alpha) {
                             accept.index <- ifelse(i == N, 0, i + 1)
