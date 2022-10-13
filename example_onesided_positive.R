@@ -102,7 +102,7 @@ c2 <- function(S, a = 30, l = 0.5) {
 randomseed <- 1
 samplesize.max <- 500
 iterations <- 1000
-gridpoints <- 200       # Anzahl equidistanter Gitterpunkte
+gridpoints <- 300       # Anzahl equidistanter Gitterpunkte
 alpha <- 0.05           # Signifikanzniveau
 
 # Testdaten -----------------------------------
@@ -129,12 +129,6 @@ c1.S <- c1(S)
 c2.S <- c2(S)
 
 S0 <- lapply(mu.all, function(mu) {S[mu == 0]})
-# S0.1 <- S[mu1.S > level]
-# S0.2 <- S[mu2.S > level]
-# S0.3 <- S[mu3.S > level]
-# S0.4 <- S[mu4.S > level]
-# S0.5 <- S[mu5.S > level]
-# S0.6 <- S[mu6.S > level]
 
 # Realisierungen von X simulieren
 cluster <- makeCluster(detectCores() - 1)
@@ -409,10 +403,13 @@ pcov <- ggplot(cov.plot.ABC, aes(x = samplesize)) +
     labs(x = "Anzahl an Samples", y = "Überdeckungsrate", color = "Modell",
          linetype = "Methode", shape = "Modell") +
     scale_linetype(labels = c("t-GKF", str_wrap("Multiplier Bootstrap", 5))) +
-    theme(legend.justification = c(1,0.5), legend.position = c(0.999,0.5),
-          legend.box.background = element_rect(fill = "white", color = "darkgray")) +
+    theme(legend.position = "right") +
     geom_hline(yintercept = 1 - alpha, col = "red3", size = 0.75,
-               linetype = "dashed")
+               linetype = "dashed") +
+    geom_hline(yintercept = 1 - alpha + 1.96*sqrt((1-alpha)*alpha/iterations),
+               col = "black", size = 0.5, linetype = "dashed") +
+    geom_hline(yintercept = 1 - alpha - 1.96*sqrt((1-alpha)*alpha/iterations),
+               col = "black", size = 0.5, linetype = "dashed")
 
 # Coverage je Modell ABC
 pcovABC <- pcov +
@@ -425,7 +422,9 @@ pcovmean <- pcov +
     geom_line(data = summarise.cov.gkf.means,
               aes(y = value_mean, color = model)) +
     geom_point(data = summarise.cov.gkf.means,
-               aes(y = value_mean, color = model, shape = model))
+               aes(y = value_mean, color = model, shape = model)) +
+    ggtitle("Überdeckungsrate mittels t-GKF") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 pcovmean
 
 ## Overcoverage -----------------------------------------------
@@ -436,8 +435,7 @@ povercov <- ggplot(overcov.plot.ABC, aes(x = samplesize)) +
          y = expression(paste("Anteil von ", U, "\\", S[0], " in ", U )),
          color = "Modell", linetype = "Methode", shape = "Modell") +
     scale_linetype(labels = c("t-GKF", str_wrap("Multiplier Bootstrap", 5))) +
-    theme(legend.justification = c(1,1), legend.position = c(0.999,0.999),
-          legend.box.background = element_rect(fill = "white", color = "darkgray"))+
+    theme(legend.position = "right") +
     geom_hline(yintercept = alpha, col = "red3", size = 0.75,
                linetype = "dashed")
 # Overcoverage je Modell ABC Durchschnittswerte
@@ -472,7 +470,7 @@ povercovmean <- povercov +
               aes(y = value_mean, color = model)) +
     geom_point(data = summarise.overcov.gkf.means,
                aes(y = value_mean, color = model, shape = model))+
-    ggtitle("Durchschnittliche Überschätzung") +
+    ggtitle("Durchschnittliche Überschätzung mittels t-GKF") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 povercovmean
 
@@ -486,5 +484,5 @@ povercovmean.gkf
 
 dev.off()
 
-# save.image(file = "third_results.RData")
+# save.image(file = "results_onesided_positive.RData")
 
