@@ -91,14 +91,14 @@ mu3 <- function(S) {
 } # Erwartungswertfunktion 3
 
 sigma <- function(S) {
-    rep(0.1, length(S))
+    rep(0.2, length(S))
 } # Varianzfunktion
 
-c1 <- function(S, h = 0.075) {
+c1 <- function(S, h = 0.1) {
     outer(S, S, FUN = function(x, y) exp( -( x - y )^2 / (2*h^2) ))
 } # Fehlerprozess 1
 
-c2 <- function(S, a = 30, l = 0.5) {
+c2 <- function(S, a = 30, l = 0.8) {
     outer(S, S, FUN = function(x, y) (1 + ( x - y )^2 / 2*a*l^2)^(-a) )
 } # Fehlerprozess 2
 
@@ -106,9 +106,9 @@ c2 <- function(S, a = 30, l = 0.5) {
 # Variablen zur Steuerung der Auswertung -----------------------------------
 
 randomseed <- 1
-samplesize.max <- 500
-iterations <- 1000
-gridpoints <- 200       # Anzahl equidistanter Gitterpunkte
+samplesize.max <- 200
+iterations <- 2000
+gridpoints <- 250       # Anzahl equidistanter Gitterpunkte
 alpha <- 0.05           # Signifikanzniveau
 
 # Testdaten -----------------------------------
@@ -135,12 +135,6 @@ c1.S <- c1(S)
 c2.S <- c2(S)
 
 S0 <- lapply(mu.all, function(mu) {S[mu == 0]})
-# S0.1 <- S[mu1.S > level]
-# S0.2 <- S[mu2.S > level]
-# S0.3 <- S[mu3.S > level]
-# S0.4 <- S[mu4.S > level]
-# S0.5 <- S[mu5.S > level]
-# S0.6 <- S[mu6.S > level]
 
 # Realisierungen von X simulieren
 cluster <- makeCluster(detectCores() - 1)
@@ -189,9 +183,9 @@ data.examp.list <- list(
     data.C.examp = data.all[[which(grepl("C", names(data.all)) == T)[1]]]
 )
 data.noise.list <- list(
-    data.A1.examp = sigma.S * eps.all[[which(grepl("A", names(eps.all)) == T)[1]]],
-    data.B.noise = sigma.S * eps.all[[which(grepl("B", names(eps.all)) == T)[1]]],
-    data.C.noise = sigma.S * eps.all[[which(grepl("C", names(eps.all)) == T)[1]]]
+    data.A1.examp = eps.all[[which(grepl("A", names(eps.all)) == T)[1]]],
+    data.B.noise = eps.all[[which(grepl("B", names(eps.all)) == T)[1]]],
+    data.C.noise = eps.all[[which(grepl("C", names(eps.all)) == T)[1]]]
 )
 
 max.examp <- max(sapply(data.examp.list, function(mat) max(mat[,1:10])))
@@ -229,8 +223,8 @@ for ( i in 1:length(data.noise.list) ){
         geom_line(data = data.noise, aes(S, Wert, colour = Sample, linetype = Sample))
 }
 
-# (plots.examp[[1]] + plots.examp[[2]] + plots.examp[[3]]) /
-#     (plots.noise[[1]] + plots.noise[[2]] + plots.noise[[3]])
+(plots.examp[[1]] + plots.examp[[2]] + plots.examp[[3]]) /
+    (plots.noise[[1]] + plots.noise[[2]] + plots.noise[[3]])
 
 # Darstellung von Realisierungen der Modelle A1,..., A6
 
@@ -306,7 +300,7 @@ gc()
 
 ## Berechnungen per Samplesize -----------------------------------------------
 
-samplesize.list <- c(25, 50, 100, 250, 500)
+samplesize.list <- c(20, 50, 100, 150, 200)
 names(samplesize.list) <- paste("N", samplesize.list, sep = "")
 
 #### Ergebnisse GKF ---------------------------------------------------------
@@ -406,7 +400,7 @@ gc()
 
 
 # Auswertung ----------------------------------------------------------------
-pdf(file = "Auswertungen.pdf", width = 12, height = 8)
+pdf(file = "Auswertungen2.pdf", width = 12, height = 8)
 
 ## Coverage -----------------------------------------------------------------
 cov.plot.ABC <- rbind(summarise.cov.gkf.ABC, summarise.cov.mb.ABC)
@@ -415,23 +409,30 @@ pcov <- ggplot(cov.plot.ABC, aes(x = samplesize)) +
     labs(x = "Anzahl an Samples", y = "Überdeckungsrate", color = "Modell",
          linetype = "Methode", shape = "Modell") +
     scale_linetype(labels = c("t-GKF", str_wrap("Multiplier Bootstrap", 5))) +
-    theme(legend.justification = c(1,0.5), legend.position = c(0.999,0.5),
-          legend.box.background = element_rect(fill = "white", color = "darkgray")) +
+    theme(legend.position = "right") +
     geom_hline(yintercept = 1 - alpha, col = "red3", size = 0.75,
-               linetype = "dashed")
+               linetype = "dashed") +
+    geom_hline(yintercept = 1 - alpha + 1.96*sqrt((1-alpha)*alpha/iterations),
+               col = "black", size = 0.5, linetype = "dashed") +
+    geom_hline(yintercept = 1 - alpha - 1.96*sqrt((1-alpha)*alpha/iterations),
+               col = "black", size = 0.5, linetype = "dashed")
 
 # Coverage je Modell ABC
 pcovABC <- pcov +
     geom_line(aes(y = value_mean, color = model,
                   linetype = method)) +
-    geom_point(aes(y = value_mean, color = model, shape = model))
+    geom_point(aes(y = value_mean, color = model, shape = model)) +
+    ggtitle("Überdeckungsrate") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 pcovABC
 # Coverage je Erwartungswertfunktion
 pcovmean <- pcov +
     geom_line(data = summarise.cov.gkf.means,
               aes(y = value_mean, color = model)) +
     geom_point(data = summarise.cov.gkf.means,
-               aes(y = value_mean, color = model, shape = model))
+               aes(y = value_mean, color = model, shape = model)) +
+    ggtitle("Überdeckungsrate mittels t-GKF") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 pcovmean
 
 ## Overcoverage -----------------------------------------------
@@ -442,8 +443,7 @@ povercov <- ggplot(overcov.plot.ABC, aes(x = samplesize)) +
          y = expression(paste("Anteil von ", U, "\\", S[0], " in ", U )),
          color = "Modell", linetype = "Methode", shape = "Modell") +
     scale_linetype(labels = c("t-GKF", str_wrap("Multiplier Bootstrap", 5))) +
-    theme(legend.justification = c(1,1), legend.position = c(0.999,0.999),
-          legend.box.background = element_rect(fill = "white", color = "darkgray"))+
+    theme(legend.position = "right") +
     geom_hline(yintercept = alpha, col = "red3", size = 0.75,
                linetype = "dashed")
 # Overcoverage je Modell ABC Durchschnittswerte
@@ -478,7 +478,7 @@ povercovmean <- povercov +
               aes(y = value_mean, color = model)) +
     geom_point(data = summarise.overcov.gkf.means,
                aes(y = value_mean, color = model, shape = model))+
-    ggtitle("Durchschnittliche Überschätzung") +
+    ggtitle("Durchschnittliche Überschätzung mittels t-GKF") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 povercovmean
 

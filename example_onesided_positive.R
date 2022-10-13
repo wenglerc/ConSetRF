@@ -85,14 +85,14 @@ mu3 <- function(S) {
 } # Erwartungswertfunktion 3
 
 sigma <- function(S) {
-    rep(0.1, length(S))
+    rep(0.2, length(S))
 } # Varianzfunktion
 
-c1 <- function(S, h = 0.075) {
+c1 <- function(S, h = 0.1) {
     outer(S, S, FUN = function(x, y) exp( -( x - y )^2 / (2*h^2) ))
 } # Fehlerprozess 1
 
-c2 <- function(S, a = 30, l = 0.5) {
+c2 <- function(S, a = 30, l = 0.8) {
     outer(S, S, FUN = function(x, y) (1 + ( x - y )^2 / 2*a*l^2)^(-a) )
 } # Fehlerprozess 2
 
@@ -394,7 +394,7 @@ gc()
 
 
 # Auswertung ----------------------------------------------------------------
-pdf(file = "Auswertungen.pdf", width = 12, height = 8)
+pdf(file = "Auswertungen3.pdf", width = 6, height = 4)
 
 ## Coverage -----------------------------------------------------------------
 cov.plot.ABC <- rbind(summarise.cov.gkf.ABC, summarise.cov.mb.ABC)
