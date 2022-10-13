@@ -100,9 +100,9 @@ c2 <- function(S, a = 30, l = 0.5) {
 # Variablen zur Steuerung der Auswertung -----------------------------------
 
 randomseed <- 1
-samplesize.max <- 500
-iterations <- 1000
-gridpoints <- 300       # Anzahl equidistanter Gitterpunkte
+samplesize.max <- 200
+iterations <- 2000
+gridpoints <- 250       # Anzahl equidistanter Gitterpunkte
 alpha <- 0.05           # Signifikanzniveau
 
 # Testdaten -----------------------------------
@@ -294,7 +294,7 @@ gc()
 
 ## Berechnungen per Samplesize -----------------------------------------------
 
-samplesize.list <- c(25, 50, 100, 250, 500)
+samplesize.list <- c(20, 50, 100, 150, 200)
 names(samplesize.list) <- paste("N", samplesize.list, sep = "")
 
 #### Ergebnisse GKF ---------------------------------------------------------
@@ -415,7 +415,9 @@ pcov <- ggplot(cov.plot.ABC, aes(x = samplesize)) +
 pcovABC <- pcov +
     geom_line(aes(y = value_mean, color = model,
                   linetype = method)) +
-    geom_point(aes(y = value_mean, color = model, shape = model))
+    geom_point(aes(y = value_mean, color = model, shape = model)) +
+    ggtitle("Überdeckungsrate") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 pcovABC
 # Coverage je Erwartungswertfunktion
 pcovmean <- pcov +
