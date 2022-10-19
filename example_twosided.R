@@ -34,10 +34,12 @@ cov.per.model <- function(results, covset, methodname){
     cov
 }
 
-overcov.per.model <- function(results, covset, methodname){
+overcov.per.model <- function(results, S, covset, methodname){
     cov <-
         sapply(results, function(samplelist) {
-            sapply(samplelist, function(U) length( U[!(U %in% covset)] ) / length(U))
+            sapply(samplelist, function(U) {
+                length( U[!(U %in% covset)] ) / (length(S) - length(covset))
+            })
         }) %>% t() %>% data.frame(model = gsub("\\.\\d+", "",rownames(.)))
     cov <- reshape2::melt(
         cov,
@@ -106,9 +108,9 @@ c2 <- function(S, a = 30, l = 0.8) {
 # Variablen zur Steuerung der Auswertung -----------------------------------
 
 randomseed <- 1
-samplesize.max <- 200
-iterations <- 2000
-gridpoints <- 250       # Anzahl equidistanter Gitterpunkte
+samplesize.max <- 400
+iterations <- 1500
+gridpoints <- 200       # Anzahl equidistanter Gitterpunkte
 alpha <- 0.05           # Signifikanzniveau
 
 # Testdaten -----------------------------------
@@ -116,7 +118,7 @@ alpha <- 0.05           # Signifikanzniveau
 set.seed(randomseed)
 
 S <- seq(0, 1, length.out = gridpoints)     # Grundmenge
-partitions <- partition_seq(S, pieces = 4)  # Folge von Partitionen
+partitions <- partition_seq(S, pieces = 3)  # Folge von Partitionen
 level <- 0                                  # Grenzwert der Null-Hypothese
 
 mu1.S <- mu1(S)
@@ -183,9 +185,9 @@ data.examp.list <- list(
     data.C.examp = data.all[[which(grepl("C", names(data.all)) == T)[1]]]
 )
 data.noise.list <- list(
-    data.A1.examp = eps.all[[which(grepl("A", names(eps.all)) == T)[1]]],
-    data.B.noise = eps.all[[which(grepl("B", names(eps.all)) == T)[1]]],
-    data.C.noise = eps.all[[which(grepl("C", names(eps.all)) == T)[1]]]
+    data.A1.examp = sigma.S * eps.all[[which(grepl("A", names(eps.all)) == T)[1]]],
+    data.B.noise = sigma.S * eps.all[[which(grepl("B", names(eps.all)) == T)[1]]],
+    data.C.noise = sigma.S * eps.all[[which(grepl("C", names(eps.all)) == T)[1]]]
 )
 
 max.examp <- max(sapply(data.examp.list, function(mat) max(mat[,1:10])))
@@ -213,18 +215,18 @@ for ( i in 1:length(data.noise.list) ){
         ggtitle(paste("Modell",
                       gsub(".*\\.(.+)\\..*", "\\1", names(data.examp.list)[i]))) +
         geom_line(data = data.examp, aes(S, Wert, colour = Sample, linetype = Sample),
-                  alpha = 0.5) +
+                  alpha = 0.8) +
         geom_line(data = data.frame(S = S, Erwartungswert = mu.all[[1]]),
-                  aes(S, Erwartungswert), colour = "red")
+                  aes(S, Erwartungswert), colour = "red", size = 1)
 
     plots.noise[[i]] <- p +  ylim(min.noise, max.noise) +
-        ggtitle(paste("Fehlerprozess Modell",
+        ggtitle(paste("Fehlerprozess",
                       gsub(".*\\.(.+)\\..*", "\\1", names(data.noise.list)[i]))) +
         geom_line(data = data.noise, aes(S, Wert, colour = Sample, linetype = Sample))
 }
 
-(plots.examp[[1]] + plots.examp[[2]] + plots.examp[[3]]) /
-    (plots.noise[[1]] + plots.noise[[2]] + plots.noise[[3]])
+# (plots.examp[[1]] + plots.examp[[2]] + plots.examp[[3]]) /
+#     (plots.noise[[1]] + plots.noise[[2]] + plots.noise[[3]])
 
 # Darstellung von Realisierungen der Modelle A1,..., A6
 
@@ -253,9 +255,9 @@ for ( i in 1:length(data.exampA.list) ){
         ggtitle(paste("Modell",
                       gsub(".*\\.(.+)\\..*", "\\1", names(data.exampA.list)[i]))) +
         geom_line(data = data.examp, aes(S, Wert, colour = Sample, linetype = Sample),
-                  alpha = 0.5) +
+                  alpha = 0.8) +
         geom_line(data = data.frame(S = S, Erwartungswert = mu.all[[i]]),
-                  aes(S, Erwartungswert), colour = "red")
+                  aes(S, Erwartungswert), colour = "red", size = 1)
 }
 
 # (plots.exampA[[1]] + plots.exampA[[2]] + plots.exampA[[3]]) /
@@ -274,12 +276,12 @@ gc()
 
 # S0.2 = S0[[2]]
 #
-# U <- ConfSet(data.all[[1]], S, partitions, alpha, level, equal = T,
+# U <- ConfSet(data.all[[1]], S, partitions, alpha, level, testcase = 1,
 #              pmethod = "tGKF")
 # cat("S0 nicht in U: ", length( S0.2[ !(S0.2 %in% U)] ) / length(S0.2),
 #     "\nU nicht in S0: ", length( U[ !(U %in% S0.2)] ) / length(U))
 #
-# U <- ConfSet(data.all[[1]], S, partitions, alpha, level, equal = T,
+# U <- ConfSet(data.all[[1]], S, partitions, alpha, level, testcase = 1,
 #              pmethod = "mboot", mb.iter = 500)
 # cat("S0 nicht in U: ", length( S0.2[ !(S0.2 %in% U)] ) / length(S0.2),
 #     "\nU nicht in S0: ", length( U[ !(U %in% S0.2)] ) / length(U))
@@ -287,20 +289,22 @@ gc()
 #
 ### Laufzeit -----------------------------------------------------------------
 # mbm <- microbenchmark(
-#     GKF = ConfSet(data.all[[1]][, 1:50], S, partitions, alpha, level,
-#                   equal = T, pmethod = "tgkf"),
-#     MB500 = ConfSet(data.all[[1]][, 1:50], S, partitions, alpha, level,
-#                     equal = T, pmethod = "mboot", mb.iter = 500),
-#     MB1000 = ConfSet(data.all[[1]][, 1:50], S, partitions, alpha, level,
-#                      equal = T, pmethod = "mboot", mb.iter = 1000),
-#     times = 100
+#     GKF = ConfSet(data.all[[3]][, 1:50], S, partitions, alpha, level,
+#                   testcase = 1, pmethod = "tgkf"),
+#     MB500 = ConfSet(data.all[[3]][, 1:50], S, partitions, alpha, level,
+#                     testcase = 1, pmethod = "mboot", mb.iter = 500),
+#     MB1000 = ConfSet(data.all[[3]][, 1:50], S, partitions, alpha, level,
+#                      testcase = 1, pmethod = "mboot", mb.iter = 1000),
+#     MB2000 = ConfSet(data.all[[3]][, 1:50], S, partitions, alpha, level,
+#                      testcase = 1, pmethod = "mboot", mb.iter = 2000),
+#     times = 500
 # )
 # autoplot(mbm)
 
 
 ## Berechnungen per Samplesize -----------------------------------------------
 
-samplesize.list <- c(20, 50, 100, 150, 200)
+samplesize.list <- c(20, 50, 100, 200, 400)
 names(samplesize.list) <- paste("N", samplesize.list, sep = "")
 
 #### Ergebnisse GKF ---------------------------------------------------------
@@ -314,7 +318,7 @@ results.gkf <-
     foreach(data = data.all, .packages = c("dplyr", "ConfSetRF")) %dopar% {
 
         lapply(samplesize.list, function(N) {
-            ConfSet(data[, 1:N], S, partitions, alpha, level, equal = T,
+            ConfSet(data[, 1:N], S, partitions, alpha, level, testcase = 1,
                     pmethod = "tgkf")
         })
     }
@@ -332,7 +336,7 @@ summarise.cov.gkf.ABC <- cov.gkf.ABC %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
 # Overcoverage je Modell ABC
 overcov.gkf.ABC <-
-    overcov.per.model(results.gkf[1:(3*iterations)], S0[[1]], "t-GKF")
+    overcov.per.model(results.gkf[1:(3*iterations)], S, S0[[1]], "t-GKF")
 summarise.overcov.gkf.ABC <- overcov.gkf.ABC %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
@@ -351,7 +355,7 @@ summarise.cov.gkf.means <- cov.gkf.means %>%
 overcov.gkf.means <-
     lapply(1:length(S0), function(i){
         overcov.per.model(results.gkf[((i+1)*iterations + 1):((i+2)*iterations)],
-                      S0[[i]], "t-GKF")
+                      S, S0[[i]], "t-GKF")
     }) %>% do.call(rbind, .)
 summarise.overcov.gkf.means <- overcov.gkf.means %>%
     group_by(method, model, samplesize) %>%
@@ -373,7 +377,7 @@ results.mb <-
 
         lapply(samplesize.list, function(N) {
             ConfSet(data[, 1:N], S, partitions, alpha, level,
-                    equal = T, pmethod = "mboot", mb.iter = 500)
+                    testcase = 1, pmethod = "mboot", mb.iter = 500)
         })
 
     }
@@ -390,7 +394,7 @@ summarise.cov.mb.ABC <- cov.mb.ABC %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
 # Overcoverage je Modell ABC
 overcov.mb.ABC <-
-    overcov.per.model(results.mb, S0[[1]], "Multiplier Bootstrap")
+    overcov.per.model(results.mb, S, S0[[1]], "Multiplier Bootstrap")
 summarise.overcov.mb.ABC <- overcov.mb.ABC %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
@@ -400,15 +404,17 @@ gc()
 
 
 # Auswertung ----------------------------------------------------------------
-pdf(file = "Auswertungen2.pdf", width = 12, height = 8)
+pdf(file = "Auswertungen2_FNR.pdf", width = 6, height = 4)
 
 ## Coverage -----------------------------------------------------------------
-cov.plot.ABC <- rbind(summarise.cov.gkf.ABC, summarise.cov.mb.ABC)
+cov.plot.ABC <- rbind(summarise.cov.gkf.ABC, summarise.cov.mb.ABC) %>%
+    arrange() %>%
+    mutate(method = factor(method,level = c("t-GKF", "Multiplier Bootstrap")))
 
 pcov <- ggplot(cov.plot.ABC, aes(x = samplesize)) +
     labs(x = "Anzahl an Samples", y = "Überdeckungsrate", color = "Modell",
          linetype = "Methode", shape = "Modell") +
-    scale_linetype(labels = c("t-GKF", str_wrap("Multiplier Bootstrap", 5))) +
+    scale_linetype(labels = c("t-GKF", "MB")) +
     theme(legend.position = "right") +
     geom_hline(yintercept = 1 - alpha, col = "red3", size = 0.75,
                linetype = "dashed") +
@@ -421,9 +427,7 @@ pcov <- ggplot(cov.plot.ABC, aes(x = samplesize)) +
 pcovABC <- pcov +
     geom_line(aes(y = value_mean, color = model,
                   linetype = method)) +
-    geom_point(aes(y = value_mean, color = model, shape = model)) +
-    ggtitle("Überdeckungsrate") +
-    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+    geom_point(aes(y = value_mean, color = model, shape = model))
 pcovABC
 # Coverage je Erwartungswertfunktion
 pcovmean <- pcov +
@@ -431,27 +435,28 @@ pcovmean <- pcov +
               aes(y = value_mean, color = model)) +
     geom_point(data = summarise.cov.gkf.means,
                aes(y = value_mean, color = model, shape = model)) +
-    ggtitle("Überdeckungsrate mittels t-GKF") +
+    ggtitle("t-GKF") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 pcovmean
 
 ## Overcoverage -----------------------------------------------
-overcov.plot.ABC <- rbind(summarise.overcov.gkf.ABC, summarise.overcov.mb.ABC)
+overcov.plot.ABC <-
+    rbind(summarise.overcov.gkf.ABC, summarise.overcov.mb.ABC) %>%
+    arrange() %>%
+    mutate(method = factor(method,level = c("t-GKF", "Multiplier Bootstrap")))
 
 povercov <- ggplot(overcov.plot.ABC, aes(x = samplesize)) +
     labs(x = "Anzahl an Samples",
-         y = expression(paste("Anteil von ", U, "\\", S[0], " in ", U )),
+         y = "Falsch-Negativ-Rate",
          color = "Modell", linetype = "Methode", shape = "Modell") +
-    scale_linetype(labels = c("t-GKF", str_wrap("Multiplier Bootstrap", 5))) +
+    scale_linetype(labels = c("t-GKF", "MB")) +
     theme(legend.position = "right") +
     geom_hline(yintercept = alpha, col = "red3", size = 0.75,
                linetype = "dashed")
 # Overcoverage je Modell ABC Durchschnittswerte
 povercovABC <- povercov +
     geom_line(aes(y = value_mean, color = model, linetype = method)) +
-    geom_point(aes(y = value_mean, color = model, shape = model))+
-    ggtitle("Durchschnittliche Überschätzung") +
-    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+    geom_point(aes(y = value_mean, color = model, shape = model))
 povercovABC
 
 # Overcoverage je Modell ABC GKF
@@ -459,7 +464,7 @@ povercovABC.gkf <- povercov +
     geom_boxplot(data = overcov.gkf.ABC,
                  aes(x = reorder(as.character(samplesize), samplesize),
                      y = value, color = model)) +
-    ggtitle("Überschätzung mittels t-GKF") +
+    ggtitle("t-GKF") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 povercovABC.gkf
 
@@ -468,7 +473,7 @@ povercovABC.mb <- povercov +
     geom_boxplot(data = overcov.mb.ABC,
                  aes(x = reorder(as.character(samplesize), samplesize),
                      y = value, color = model)) +
-    ggtitle("Überschätzung mittels Multiplier Bootstrap") +
+    ggtitle("Multiplier Bootstrap") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 povercovABC.mb
 
@@ -478,7 +483,7 @@ povercovmean <- povercov +
               aes(y = value_mean, color = model)) +
     geom_point(data = summarise.overcov.gkf.means,
                aes(y = value_mean, color = model, shape = model))+
-    ggtitle("Durchschnittliche Überschätzung mittels t-GKF") +
+    ggtitle("t-GKF") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 povercovmean
 
@@ -486,11 +491,19 @@ povercovmean.gkf <- povercov +
     geom_boxplot(data = overcov.gkf.means,
                  aes(x = reorder(as.character(samplesize), samplesize),
                      y = value, color = model)) +
-    ggtitle("Überschätzung mittels t-GKF") +
+    ggtitle("t-GKF") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 povercovmean.gkf
 
 dev.off()
 
-# save.image(file = "results_twosided.RData")
+pdf(file = "resultsABC.pdf", width = 9, height = 4)
+pcovABC+ theme(legend.position = "none") + povercovABC
+dev.off()
+
+pdf(file = "resultsA1-6.pdf", width = 9, height = 4)
+pcovmean+ theme(legend.position = "none") + povercovmean
+dev.off()
+
+save.image(file = "results_twosided_FNR.RData")
 
