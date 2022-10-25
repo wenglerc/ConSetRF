@@ -1,5 +1,6 @@
 .Rproj.user
 .Rhistory
-.RData
+*.RData
 .Ruserdata
-first_results.RData
+*.DS_Store
+*.pdf
