@@ -118,7 +118,7 @@ alpha <- 0.05           # Signifikanzniveau
 set.seed(randomseed)
 
 S <- seq(0, 1, length.out = gridpoints)     # Grundmenge
-partitions <- partition_seq(S, pieces = 3)  # Folge von Partitionen
+partitions <- partition_seq(S, pieces = 4)  # Folge von Partitionen
 level <- 0                                  # Grenzwert der Null-Hypothese
 
 mu1.S <- mu1(S)
@@ -327,7 +327,6 @@ toc()
 
 names(results.gkf) <- names(data.all)
 
-
 # Coverage je Modell ABC
 cov.gkf.ABC <-
     cov.per.model(results.gkf[1:(3*iterations)], S0[[1]], "t-GKF")
@@ -404,7 +403,7 @@ gc()
 
 
 # Auswertung ----------------------------------------------------------------
-pdf(file = "Auswertungen2_FNR.pdf", width = 6, height = 4)
+pdf(file = "Auswertungen_twosided.pdf", width = 6, height = 4)
 
 ## Coverage -----------------------------------------------------------------
 cov.plot.ABC <- rbind(summarise.cov.gkf.ABC, summarise.cov.mb.ABC) %>%
@@ -497,13 +496,13 @@ povercovmean.gkf
 
 dev.off()
 
-pdf(file = "resultsABC.pdf", width = 9, height = 4)
+pdf(file = "resultsABC_twosided.pdf", width = 9, height = 4)
 pcovABC+ theme(legend.position = "none") + povercovABC
 dev.off()
 
-pdf(file = "resultsA1-6.pdf", width = 9, height = 4)
+pdf(file = "resultsA1-6_twosided.pdf", width = 9, height = 4)
 pcovmean+ theme(legend.position = "none") + povercovmean
 dev.off()
 
-save.image(file = "results_twosided_FNR.RData")
+# save.image(file = "results_twosided_FNR.RData")
 

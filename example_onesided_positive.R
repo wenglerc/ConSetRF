@@ -34,10 +34,12 @@ cov.per.model <- function(results, covset, methodname){
     cov
 }
 
-overcov.per.model <- function(results, covset, methodname){
+overcov.per.model <- function(results, S, covset, methodname){
     cov <-
         sapply(results, function(samplelist) {
-            sapply(samplelist, function(U) length( U[!(U %in% covset)] ) / length(U))
+            sapply(samplelist, function(U) {
+                length( U[!(U %in% covset)] ) / (length(S) - length(covset))
+            })
         }) %>% t() %>% data.frame(model = gsub("\\.\\d+", "",rownames(.)))
     cov <- reshape2::melt(
         cov,
@@ -100,9 +102,9 @@ c2 <- function(S, a = 30, l = 0.8) {
 # Variablen zur Steuerung der Auswertung -----------------------------------
 
 randomseed <- 1
-samplesize.max <- 200
-iterations <- 2000
-gridpoints <- 250       # Anzahl equidistanter Gitterpunkte
+samplesize.max <- 400
+iterations <- 1500
+gridpoints <- 200       # Anzahl equidistanter Gitterpunkte
 alpha <- 0.05           # Signifikanzniveau
 
 # Testdaten -----------------------------------
@@ -294,7 +296,7 @@ gc()
 
 ## Berechnungen per Samplesize -----------------------------------------------
 
-samplesize.list <- c(20, 50, 100, 150, 200)
+samplesize.list <- c(20, 50, 100, 200, 400)
 names(samplesize.list) <- paste("N", samplesize.list, sep = "")
 
 #### Ergebnisse GKF ---------------------------------------------------------
@@ -317,7 +319,6 @@ toc()
 
 names(results.gkf) <- names(data.all)
 
-
 # Coverage je Modell ABC
 cov.gkf.ABC <-
     cov.per.model(results.gkf[1:(3*iterations)], S0[[1]], "t-GKF")
@@ -326,7 +327,7 @@ summarise.cov.gkf.ABC <- cov.gkf.ABC %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
 # Overcoverage je Modell ABC
 overcov.gkf.ABC <-
-    overcov.per.model(results.gkf[1:(3*iterations)], S0[[1]], "t-GKF")
+    overcov.per.model(results.gkf[1:(3*iterations)], S, S0[[1]], "t-GKF")
 summarise.overcov.gkf.ABC <- overcov.gkf.ABC %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
@@ -337,7 +338,7 @@ cov.gkf.means <-
     lapply(1:length(S0), function(i){
         cov.per.model(results.gkf[((i+1)*iterations + 1):((i+2)*iterations)],
                       S0[[i]], "t-GKF")
-        }) %>% do.call(rbind, .)
+    }) %>% do.call(rbind, .)
 summarise.cov.gkf.means <- cov.gkf.means %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
@@ -345,11 +346,12 @@ summarise.cov.gkf.means <- cov.gkf.means %>%
 overcov.gkf.means <-
     lapply(1:length(S0), function(i){
         overcov.per.model(results.gkf[((i+1)*iterations + 1):((i+2)*iterations)],
-                      S0[[i]], "t-GKF")
+                          S, S0[[i]], "t-GKF")
     }) %>% do.call(rbind, .)
 summarise.overcov.gkf.means <- overcov.gkf.means %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
+
 
 rm(results.gkf) # Speicherplatz frei machen
 gc()
@@ -384,7 +386,7 @@ summarise.cov.mb.ABC <- cov.mb.ABC %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
 # Overcoverage je Modell ABC
 overcov.mb.ABC <-
-    overcov.per.model(results.mb, S0[[1]], "Multiplier Bootstrap")
+    overcov.per.model(results.mb, S, S0[[1]], "Multiplier Bootstrap")
 summarise.overcov.mb.ABC <- overcov.mb.ABC %>%
     group_by(method, model, samplesize) %>%
     summarise(across(.fns = list(mean = mean, sd = sd)), .groups = "drop")
@@ -394,15 +396,17 @@ gc()
 
 
 # Auswertung ----------------------------------------------------------------
-pdf(file = "Auswertungen3.pdf", width = 6, height = 4)
+pdf(file = "Auswertungen_onesided.pdf", width = 6, height = 4)
 
 ## Coverage -----------------------------------------------------------------
-cov.plot.ABC <- rbind(summarise.cov.gkf.ABC, summarise.cov.mb.ABC)
+cov.plot.ABC <- rbind(summarise.cov.gkf.ABC, summarise.cov.mb.ABC) %>%
+    arrange() %>%
+    mutate(method = factor(method,level = c("t-GKF", "Multiplier Bootstrap")))
 
 pcov <- ggplot(cov.plot.ABC, aes(x = samplesize)) +
     labs(x = "Anzahl an Samples", y = "Überdeckungsrate", color = "Modell",
          linetype = "Methode", shape = "Modell") +
-    scale_linetype(labels = c("t-GKF", str_wrap("Multiplier Bootstrap", 5))) +
+    scale_linetype(labels = c("t-GKF", "MB")) +
     theme(legend.position = "right") +
     geom_hline(yintercept = 1 - alpha, col = "red3", size = 0.75,
                linetype = "dashed") +
@@ -415,9 +419,7 @@ pcov <- ggplot(cov.plot.ABC, aes(x = samplesize)) +
 pcovABC <- pcov +
     geom_line(aes(y = value_mean, color = model,
                   linetype = method)) +
-    geom_point(aes(y = value_mean, color = model, shape = model)) +
-    ggtitle("Überdeckungsrate") +
-    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+    geom_point(aes(y = value_mean, color = model, shape = model))
 pcovABC
 # Coverage je Erwartungswertfunktion
 pcovmean <- pcov +
@@ -425,27 +427,28 @@ pcovmean <- pcov +
               aes(y = value_mean, color = model)) +
     geom_point(data = summarise.cov.gkf.means,
                aes(y = value_mean, color = model, shape = model)) +
-    ggtitle("Überdeckungsrate mittels t-GKF") +
+    ggtitle("t-GKF") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 pcovmean
 
 ## Overcoverage -----------------------------------------------
-overcov.plot.ABC <- rbind(summarise.overcov.gkf.ABC, summarise.overcov.mb.ABC)
+overcov.plot.ABC <-
+    rbind(summarise.overcov.gkf.ABC, summarise.overcov.mb.ABC) %>%
+    arrange() %>%
+    mutate(method = factor(method,level = c("t-GKF", "Multiplier Bootstrap")))
 
 povercov <- ggplot(overcov.plot.ABC, aes(x = samplesize)) +
     labs(x = "Anzahl an Samples",
-         y = expression(paste("Anteil von ", U, "\\", S[0], " in ", U )),
+         y = "Falsch-Negativ-Rate",
          color = "Modell", linetype = "Methode", shape = "Modell") +
-    scale_linetype(labels = c("t-GKF", str_wrap("Multiplier Bootstrap", 5))) +
+    scale_linetype(labels = c("t-GKF", "MB")) +
     theme(legend.position = "right") +
     geom_hline(yintercept = alpha, col = "red3", size = 0.75,
                linetype = "dashed")
 # Overcoverage je Modell ABC Durchschnittswerte
 povercovABC <- povercov +
     geom_line(aes(y = value_mean, color = model, linetype = method)) +
-    geom_point(aes(y = value_mean, color = model, shape = model))+
-    ggtitle("Durchschnittliche Überschätzung") +
-    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+    geom_point(aes(y = value_mean, color = model, shape = model))
 povercovABC
 
 # Overcoverage je Modell ABC GKF
@@ -453,7 +456,7 @@ povercovABC.gkf <- povercov +
     geom_boxplot(data = overcov.gkf.ABC,
                  aes(x = reorder(as.character(samplesize), samplesize),
                      y = value, color = model)) +
-    ggtitle("Überschätzung mittels t-GKF") +
+    ggtitle("t-GKF") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 povercovABC.gkf
 
@@ -462,7 +465,7 @@ povercovABC.mb <- povercov +
     geom_boxplot(data = overcov.mb.ABC,
                  aes(x = reorder(as.character(samplesize), samplesize),
                      y = value, color = model)) +
-    ggtitle("Überschätzung mittels Multiplier Bootstrap") +
+    ggtitle("Multiplier Bootstrap") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 povercovABC.mb
 
@@ -472,7 +475,7 @@ povercovmean <- povercov +
               aes(y = value_mean, color = model)) +
     geom_point(data = summarise.overcov.gkf.means,
                aes(y = value_mean, color = model, shape = model))+
-    ggtitle("Durchschnittliche Überschätzung mittels t-GKF") +
+    ggtitle("t-GKF") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 povercovmean
 
@@ -480,10 +483,18 @@ povercovmean.gkf <- povercov +
     geom_boxplot(data = overcov.gkf.means,
                  aes(x = reorder(as.character(samplesize), samplesize),
                      y = value, color = model)) +
-    ggtitle("Überschätzung mittels t-GKF") +
+    ggtitle("t-GKF") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 povercovmean.gkf
 
+dev.off()
+
+pdf(file = "resultsABC_onesided.pdf", width = 9, height = 4)
+pcovABC+ theme(legend.position = "none") + povercovABC
+dev.off()
+
+pdf(file = "resultsA1-6_onesided.pdf", width = 9, height = 4)
+pcovmean+ theme(legend.position = "none") + povercovmean
 dev.off()
 
 # save.image(file = "results_onesided_positive.RData")
