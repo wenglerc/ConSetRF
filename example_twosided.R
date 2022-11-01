@@ -197,7 +197,7 @@ min.noise <- min(sapply(data.noise.list, function(mat) min(mat[,1:10])))
 
 p <- ggplot() + labs(x = "", y = "") +
     theme(legend.position = "none",
-          plot.title = element_text(hjust = 0.5, face = "bold"))
+          plot.title = element_text(hjust = 0.5))
 
 plots.examp <- vector( mode = "list", length(data.noise.list) )
 plots.noise <- vector( mode = "list", length(data.noise.list) )
@@ -215,18 +215,22 @@ for ( i in 1:length(data.noise.list) ){
         ggtitle(paste("Modell",
                       gsub(".*\\.(.+)\\..*", "\\1", names(data.examp.list)[i]))) +
         geom_line(data = data.examp, aes(S, Wert, colour = Sample, linetype = Sample),
-                  alpha = 0.8) +
+                  alpha = 0.6, size = 0.75) +
         geom_line(data = data.frame(S = S, Erwartungswert = mu.all[[1]]),
-                  aes(S, Erwartungswert), colour = "red", size = 1)
+                  aes(S, Erwartungswert), colour = "red", size = 0.75)
 
     plots.noise[[i]] <- p +  ylim(min.noise, max.noise) +
         ggtitle(paste("Fehlerprozess",
                       gsub(".*\\.(.+)\\..*", "\\1", names(data.noise.list)[i]))) +
-        geom_line(data = data.noise, aes(S, Wert, colour = Sample, linetype = Sample))
+        geom_line(data = data.noise, aes(S, Wert, colour = Sample, linetype = Sample),
+                  size = 0.75)
 }
 
 # (plots.examp[[1]] + plots.examp[[2]] + plots.examp[[3]]) /
 #     (plots.noise[[1]] + plots.noise[[2]] + plots.noise[[3]])
+
+# plots.examp[[1]] + ylim(-1.5, 1.5) +
+#     plots.noise[[1]] + ylim(-3, 3)
 
 # Darstellung von Realisierungen der Modelle A1,..., A6
 
@@ -241,8 +245,8 @@ data.exampA.list <- list(
 
 # max.exampA <- max(sapply(data.exampA.list, function(mat) max(mat[,1:10])))
 # min.exampA <- min(sapply(data.exampA.list, function(mat) min(mat[,1:10])))
-max.exampA <- 1.5
-min.exampA <- -1.5
+max.exampA <- 1.25
+min.exampA <- -1.25
 
 plots.exampA <- vector( mode = "list", length(data.exampA.list) )
 for ( i in 1:length(data.exampA.list) ){
@@ -255,13 +259,17 @@ for ( i in 1:length(data.exampA.list) ){
         ggtitle(paste("Modell",
                       gsub(".*\\.(.+)\\..*", "\\1", names(data.exampA.list)[i]))) +
         geom_line(data = data.examp, aes(S, Wert, colour = Sample, linetype = Sample),
-                  alpha = 0.8) +
+                  alpha = 0.6, size = 0.6) +
         geom_line(data = data.frame(S = S, Erwartungswert = mu.all[[i]]),
                   aes(S, Erwartungswert), colour = "red", size = 1)
 }
 
 # (plots.exampA[[1]] + plots.exampA[[2]] + plots.exampA[[3]]) /
 #     (plots.exampA[[4]] + plots.exampA[[5]] + plots.exampA[[6]])
+#
+# (plots.exampA[[1]] + plots.exampA[[2]]) /
+#     (plots.exampA[[3]] + plots.exampA[[4]]) /
+#     (plots.exampA[[5]] + plots.exampA[[6]])
 
 # Speicherplatz frei machen
 rm(
@@ -433,9 +441,7 @@ pcovmean <- pcov +
     geom_line(data = summarise.cov.gkf.means,
               aes(y = value_mean, color = model)) +
     geom_point(data = summarise.cov.gkf.means,
-               aes(y = value_mean, color = model, shape = model)) +
-    ggtitle("t-GKF") +
-    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+               aes(y = value_mean, color = model, shape = model))
 pcovmean
 
 ## Overcoverage -----------------------------------------------
@@ -481,28 +487,27 @@ povercovmean <- povercov +
     geom_line(data = summarise.overcov.gkf.means,
               aes(y = value_mean, color = model)) +
     geom_point(data = summarise.overcov.gkf.means,
-               aes(y = value_mean, color = model, shape = model))+
-    ggtitle("t-GKF") +
-    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+               aes(y = value_mean, color = model, shape = model))
 povercovmean
 
 povercovmean.gkf <- povercov +
     geom_boxplot(data = overcov.gkf.means,
                  aes(x = reorder(as.character(samplesize), samplesize),
-                     y = value, color = model)) +
-    ggtitle("t-GKF") +
-    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+                     y = value, color = model))
 povercovmean.gkf
 
 dev.off()
 
-pdf(file = "resultsABC_twosided.pdf", width = 9, height = 4)
-pcovABC+ theme(legend.position = "none") + povercovABC
+pdf(file = "resultsABC_twosided_part4.pdf", width = 9, height = 4)
+combined1 <- pcovABC + povercovABC & theme(legend.position = "top")
+combined1 + plot_layout(guides = "collect")
 dev.off()
 
-pdf(file = "resultsA1-6_twosided.pdf", width = 9, height = 4)
-pcovmean+ theme(legend.position = "none") + povercovmean
+pdf(file = "resultsA1-6_twosided_part4.pdf", width = 9, height = 4)
+combined2 <- pcovmean + povercovmean & theme(legend.position = "top") &
+    guides(color = guide_legend(nrow = 1))
+combined2 + plot_layout(guides = "collect")
 dev.off()
 
-# save.image(file = "results_twosided_FNR.RData")
+# save.image(file = "results_twosided.RData")
 
